@@ -1,35 +1,99 @@
-Orca 自维护版本
+Orca 自维护版本：简明部署指南
 
-upstream：官方仓库（已禁用 push）
-origin：https://github.com/BB0027/orca
-custom/main：日常使用与打包的定制分支
-fix/*、chore/*：独立修改；upgrade/*：试合并官方发布标签
+适用环境：本机 Windows、PowerShell 7、Node 24、pnpm 12.8.1。
+开发还需 Visual Studio Build Tools 的 C++ 工具链和 Windows SDK，本机已补齐。
+以下以官方 v1.4.224、自维护版本 1.4.224+custom.2 为发布示例。
+每次发布使用新的 +custom.N 和对应产物目录，不要覆盖旧产物。
 
-当前基线：v1.4.224；自用版本：1.4.224+custom.1。
-DSH 新任务通过 dsh-tui . -- <prompt> 启动；已验证 dsh-tui 0.14.0。
-远程主机也必须安装支持 -- 提示词的 dsh-tui。已有会话的后续输入沿用原流程。
-自用版本关闭官方二进制更新安装入口，通过合并源码并重建更新。
+一、分支约定
 
-Windows 构建（PowerShell 7，Node 24）：
-  pwsh -File config/scripts/build-local-windows.ps1 -BaseApp E:\OrcaLocal\backups\official-1.4.224\app -OutputDirectory E:\OrcaLocal\releases\1.4.224-custom.1
+  upstream     官方仓库，已禁用 push
+  origin       https://github.com/BB0027/orca
+  custom/main  已合并的自维护源码，部署从这里构建
+  fix/*        单项修复
+  chore/*      配置、工具和文档修改
+  upgrade/*    合并官方更新并验证
 
-OutputDirectory 必须尚不存在。先提交全部修改；打包记录 Git 提交和版本。
-再次发布先递增 package.json 中 +custom.N 的 N，然后重新构建。
-脚本只生成新程序目录，不会自动替换当前运行程序。
+二、在 Orca 创建 worktree
 
-首次打包复用完全匹配的官方版本中的 Electron、原生模块、SSH relay、mobile-web；
-CLI、主程序、preload、renderer、web 从本仓库源码构建。
-依赖、native、mobile、relay、resources 或相关打包输入发生变更时，脚本拒绝复用。
-这种情况应采用官方完整 Windows release 构建流程，不能绕过匹配检查。
+1. 先 Fetch 更新分支信息，再打开 New Workspace，选择 Orca 仓库。
+2. 新任务：输入 fix/你的任务名，选择 Create new branch。
+3. 在 Branch from 选择 origin/custom/main，或其他指定的起始分支。
+4. 继续已有任务：直接搜索并选择已有分支；分支已被使用时，打开原工作区。
+5. 等待 setup 完成。初始化失败可修复环境后在该目录重跑 pnpm install，
+   不必删除 worktree。
 
-升级示例（将 vX.Y.Z 换成选定的真实发布标签）：
-  git fetch upstream --tags
-  git switch custom/main
-  git switch -c upgrade/vX.Y.Z
-  git merge vX.Y.Z
-解决冲突，将版本设为 X.Y.Z+custom.1；保留更新保护和仍需使用的定制补丁。
-为新官方基线准备匹配的官方程序目录，然后构建、测试。
-验证成功后 git switch custom/main，再 git merge --no-ff upgrade/vX.Y.Z。
-最后 git push origin custom/main。不要强制推送共享的 custom/main。
+三、修改、验证和合并
 
-本机部署与回退记录在 E:\OrcaLocal；备份、凭据和用户数据不要加入 Git。
+1. 在任务 worktree 内修改，运行对应功能的测试、类型检查和 lint。
+2. 在 Source Control 查看差异，只暂存本次修改，然后 Commit、Push。
+3. Create PR：目标仓库选 BB0027/orca，Base 选 custom/main，Head 选任务分支。
+   检查通过后使用普通 Merge commit 合并。
+4. 如果目标分支已有新修改或出现冲突，先同步目标分支、解决冲突并重新测试。
+5. PR 合并后，在主目录同步：
+
+   cd E:\Workspace\orca
+   git switch custom/main
+   git pull --ff-only origin custom/main
+
+个人小修改也可在主目录执行 git merge --no-ff <任务分支>，
+验证后 git push origin custom/main；与 PR 合并二选一。
+不要强制推送 custom/main。合并源码不会自动替换正在运行的 Orca。
+
+四、生成发布产物
+
+1. 将 package.json 的 version 递增，例如改为 1.4.224+custom.2，提交并推送。
+2. 确认 git status --short 没有输出，避免打包未提交的改动。
+   如果只显示仓库内嵌套的 worktree 目录，例如 merfolk-2/，不要把它提交。
+   可在本机 .git/info/exclude 中加入精确目录项 /merfolk-2/，再检查状态。
+3. 在主目录使用 PowerShell 7 执行：
+
+   pwsh -File config/scripts/build-local-windows.ps1 -BaseApp E:\OrcaLocal\backups\official-1.4.224\app -OutputDirectory E:\OrcaLocal\releases\1.4.224-custom.2
+
+输出目录必须尚不存在。脚本会做完整类型检查、现有 DSH/更新保护回归测试，
+并构建应用代码、生成程序目录；新增功能的专项测试仍需在第三步执行。
+产物里的 local-build.json 记录对应提交。构建成功不会自动部署。
+
+构建范围：复用完全匹配的官方 Electron、原生模块、SSH relay、mobile-web，
+重新构建 CLI、主程序、preload、renderer 和 web。
+依赖、native、mobile、relay、resources 或受保护的打包输入有变更时，
+脚本会拒绝复用；此时需走官方完整 Windows release 构建流程，不能跳过检查。
+
+五、替换本机运行版本
+
+1. 保留上一份可用的 releases 产物，并备份重要用户数据。
+2. 打开 E:\OrcaLocal\switch-runtime.ps1，把 $source 的 else 分支路径
+   改为本次产物，例如 E:\OrcaLocal\releases\1.4.224-custom.2。
+   当前脚本没有版本参数；不要改写 -Rollback 对应的官方备份路径。
+3. 通过 Orca 的 File > Exit 退出前端，保留终端守护进程。
+4. 在外部 PowerShell 中执行：
+
+   pwsh -File E:\OrcaLocal\switch-runtime.ps1
+
+如果提示 Orca 仍在运行，先确认前端已经退出，再重试；不要结束终端守护进程。
+该脚本适用于上述同一官方基线的应用代码替换，不能代替跨版本完整安装器。
+脚本位于本机 E:\OrcaLocal，不随 Git 仓库分发到其他设备。
+
+六、部署后验证和回退
+
+1. 执行 orca status --json，检查运行版本是否与本次发布一致。
+2. 检查原有终端是否重连，验证本次修改以及日常使用的关键功能。
+3. 验证通过后，才在 Orca 删除已完成的任务 worktree，按需删除任务分支。
+4. 回退到上一份自维护版本：将 switch-runtime.ps1 的 else 路径改回旧产物，
+   退出 Orca 前端后，再执行不带参数的脚本。
+5. 回退到备份的官方 1.4.224：退出前端后执行：
+
+   pwsh -File E:\OrcaLocal\switch-runtime.ps1 -Rollback
+
+回退脚本只替换程序代码，不恢复旧用户数据，也不保证撤销数据格式迁移。
+以 orca status --json 的运行版本为准，不以残留的构建记录判断版本。
+
+七、官方更新时
+
+先 git fetch upstream --tags，在 upgrade/<官方版本> 分支合并选定发布标签，
+解决冲突、保留所需定制补丁和自维护更新保护，验证后再合并回 custom/main。
+同时更新版本号和匹配的官方运行组件，重新评估能否使用本指南的快速打包方式。
+自维护版本关闭官方二进制更新入口，避免官方更新覆盖本地修改。
+
+补充：DSH 新任务使用 dsh-tui . -- <prompt>，已验证 dsh-tui 0.14.0。
+远程主机也需支持该提示词参数。备份、凭据和用户数据不要加入 Git。

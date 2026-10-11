@@ -37,19 +37,45 @@ export type UpdaterSetupOptions = {
 
 /** Initializes electron-updater and attaches lifecycle/event bridges. */
 export class UpdaterSetup extends UpdaterDownloadInstall {
+  private refuseSelfManagedUpdate(): boolean {
+    if (!app.getVersion().includes('+custom.')) {
+      return false
+    }
+    this.sendStatus({
+      state: 'error',
+      message:
+        'This custom build is maintained from source. Merge upstream updates and rebuild to keep your local changes.',
+      userInitiated: true,
+      retryable: false
+    })
+    return true
+  }
+
   checkForUpdates(): void {
+    if (app.getVersion().includes('+custom.')) {
+      return
+    }
     this.checkForUpdatesInBackground()
   }
 
   checkForUpdatesFromMenu(options?: UpdateCheckOptions): void {
+    if (this.refuseSelfManagedUpdate()) {
+      return
+    }
     super.checkForUpdatesFromMenu(options)
   }
 
   downloadUpdate(): void {
+    if (this.refuseSelfManagedUpdate()) {
+      return
+    }
     super.downloadUpdate()
   }
 
   quitAndInstall(): void {
+    if (this.refuseSelfManagedUpdate()) {
+      return
+    }
     super.quitAndInstall()
   }
 
@@ -124,6 +150,11 @@ export class UpdaterSetup extends UpdaterDownloadInstall {
     this.getReleaseChannelOverride = opts?.getReleaseChannelOverride ?? null
     this.updateInstallMode = opts?.installMode ?? 'interactive'
     this.lastInstallDeferralVersion = { download: null, install: null }
+
+    // Custom builds must retain their patches instead of installing upstream binaries.
+    if (app.getVersion().includes('+custom.')) {
+      return
+    }
 
     const serveHandoffFailure = getServeUpdateHandoffFailure()
     if (serveHandoffFailure) {

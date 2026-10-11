@@ -70,10 +70,7 @@ const TUI_AGENT_CONFIG_SOURCE: Record<TuiAgent, TuiAgentConfigSource> = {
     draftPasteReadyTimeoutMs: 20_000,
     submitRetryDelayMs: 1200
   },
-  autohand: {
-    detectCmd: 'autohand',
-    promptInjectionMode: 'stdin-after-start'
-  },
+  autohand: { detectCmd: 'autohand', promptInjectionMode: 'stdin-after-start' },
   ante: {
     detectCmd: 'ante',
     // Why: `ante --prompt` is headless (runs once and exits), so launch the bare TUI and inject after startup.

@@ -1,0 +1,35 @@
+Orca 自维护版本
+
+upstream：官方仓库（已禁用 push）
+origin：https://github.com/BB0027/orca
+custom/main：日常使用与打包的定制分支
+fix/*、chore/*：独立修改；upgrade/*：试合并官方发布标签
+
+当前基线：v1.4.224；自用版本：1.4.224+custom.1。
+DSH 新任务通过 dsh-tui . -- <prompt> 启动；已验证 dsh-tui 0.14.0。
+远程主机也必须安装支持 -- 提示词的 dsh-tui。已有会话的后续输入沿用原流程。
+自用版本关闭官方二进制更新安装入口，通过合并源码并重建更新。
+
+Windows 构建（PowerShell 7，Node 24）：
+  pwsh -File config/scripts/build-local-windows.ps1 -BaseApp E:\OrcaLocal\backups\official-1.4.224\app -OutputDirectory E:\OrcaLocal\releases\1.4.224-custom.1
+
+OutputDirectory 必须尚不存在。先提交全部修改；打包记录 Git 提交和版本。
+再次发布先递增 package.json 中 +custom.N 的 N，然后重新构建。
+脚本只生成新程序目录，不会自动替换当前运行程序。
+
+首次打包复用完全匹配的官方版本中的 Electron、原生模块、SSH relay、mobile-web；
+CLI、主程序、preload、renderer、web 从本仓库源码构建。
+依赖、native、mobile、relay、resources 或相关打包输入发生变更时，脚本拒绝复用。
+这种情况应采用官方完整 Windows release 构建流程，不能绕过匹配检查。
+
+升级示例（将 vX.Y.Z 换成选定的真实发布标签）：
+  git fetch upstream --tags
+  git switch custom/main
+  git switch -c upgrade/vX.Y.Z
+  git merge vX.Y.Z
+解决冲突，将版本设为 X.Y.Z+custom.1；保留更新保护和仍需使用的定制补丁。
+为新官方基线准备匹配的官方程序目录，然后构建、测试。
+验证成功后 git switch custom/main，再 git merge --no-ff upgrade/vX.Y.Z。
+最后 git push origin custom/main。不要强制推送共享的 custom/main。
+
+本机部署与回退记录在 E:\OrcaLocal；备份、凭据和用户数据不要加入 Git。

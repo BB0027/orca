@@ -326,7 +326,8 @@ const TUI_AGENT_CONFIG_SOURCE: Record<TuiAgent, TuiAgentConfigSource> = {
     // A first bare launch opens the session browser instead of the composer.
     launchCmd: 'dsh-tui .',
     expectedProcess: 'dsh',
-    promptInjectionMode: 'stdin-after-start',
+    promptInjectionMode: 'argv',
+    argvPromptSeparator: '--',
     // The whale intro keeps repainting behind the ready composer.
     draftPasteReadySignal: 'dsh-composer-prompt'
   },

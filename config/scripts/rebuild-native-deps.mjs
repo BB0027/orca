@@ -166,6 +166,8 @@ try {
   disableMsbuildFileTrackingOnWindows()
   await rebuild({
     buildPath: projectDir,
+    // Nested worktrees must not rebuild native modules in the parent checkout.
+    projectRootPath: projectDir,
     electronVersion,
     platform: rebuildPlatform,
     arch: rebuildArch,

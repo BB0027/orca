@@ -42,7 +42,7 @@ for (const entry of [
   'main/index.js',
   'preload/index.js',
   'renderer/index.html',
-  'web/index.html'
+  'web/web-index.html'
 ]) {
   if (!existsSync(join(root, 'out', entry))) {
     throw new Error(`Build output missing: ${entry}`)

@@ -5,6 +5,7 @@ import { disposeWebgl } from './pane-webgl-renderer'
 // still consume GPU memory. Six keeps recent switch-backs on WebGL without
 // letting hidden worktrees grow that cost with the mounted-pane population.
 const MAX_RETAINED_HIDDEN_WEBGL_CONTEXTS = 6
+const HIDDEN_WEBGL_RETENTION_MS = 30_000
 
 /** Identity of the surface whose hidden panes are retained; compared by reference only. */
 export type HiddenWebglRetentionOwner = WeakKey
@@ -12,6 +13,7 @@ export type HiddenWebglRetentionOwner = WeakKey
 type RetainedHiddenEntry = {
   owner: HiddenWebglRetentionOwner
   livePanes: () => Iterable<ManagedPaneInternal>
+  expiryTimer: ReturnType<typeof setTimeout> | null
 }
 
 // LRU: oldest suspend first.
@@ -36,21 +38,29 @@ function disposeEntryContexts(entry: RetainedHiddenEntry): void {
 function removeEntry(owner: HiddenWebglRetentionOwner): void {
   const index = retainedEntries.findIndex((entry) => entry.owner === owner)
   if (index !== -1) {
-    retainedEntries.splice(index, 1)
+    const [entry] = retainedEntries.splice(index, 1)
+    clearEntryExpiry(entry)
+  }
+}
+
+function clearEntryExpiry(entry: RetainedHiddenEntry): void {
+  if (entry.expiryTimer !== null) {
+    clearTimeout(entry.expiryTimer)
+    entry.expiryTimer = null
   }
 }
 
 /**
  * Try to keep the owner's live WebGL addons across a hide. Returns true when
  * retained — the caller must then skip its dispose pass. Evicts (disposes)
- * least-recently-hidden owners to stay under the context cap.
+ * least-recently-hidden owners to stay under the context cap; idle entries expire.
  */
 export function tryRetainHiddenPanesWebgl(
   owner: HiddenWebglRetentionOwner,
   livePanes: () => Iterable<ManagedPaneInternal>
 ): boolean {
   removeEntry(owner)
-  const entry: RetainedHiddenEntry = { owner, livePanes }
+  const entry: RetainedHiddenEntry = { owner, livePanes, expiryTimer: null }
   const ownCount = liveContextCount(entry)
   // Nothing to retain (GPU off / first-mount hidden), or a single tab too wide
   // for the cap — normal dispose keeps eviction from thrashing every other tab.
@@ -63,10 +73,19 @@ export function tryRetainHiddenPanesWebgl(
   }
   while (total > MAX_RETAINED_HIDDEN_WEBGL_CONTEXTS && retainedEntries.length > 0) {
     const evicted = retainedEntries.shift()!
+    clearEntryExpiry(evicted)
     total -= liveContextCount(evicted)
     disposeEntryContexts(evicted)
   }
   retainedEntries.push(entry)
+  // Keep quick switch-backs warm without retaining idle GPU resources indefinitely.
+  entry.expiryTimer = setTimeout(() => {
+    if (!retainedEntries.includes(entry)) {
+      return
+    }
+    removeEntry(entry.owner)
+    disposeEntryContexts(entry)
+  }, HIDDEN_WEBGL_RETENTION_MS)
   return true
 }
 
@@ -80,5 +99,8 @@ export function retainedHiddenWebglOwnerCountForTest(): number {
 }
 
 export function resetHiddenWebglRetentionForTest(): void {
+  for (const entry of retainedEntries) {
+    clearEntryExpiry(entry)
+  }
   retainedEntries.length = 0
 }

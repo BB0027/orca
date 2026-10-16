@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ManagedPaneInternal, PaneManagerOptions } from './pane-manager-types'
 import { resumePaneRendering, suspendPaneRendering } from './pane-rendering-control'
 import { PaneManager } from './pane-manager'
+import { primeTerminalWebglAddon } from './pane-webgl-renderer'
 import {
   releaseHiddenWebglRetention,
   resetHiddenWebglRetentionForTest,
@@ -39,6 +40,12 @@ function managerWithPane(pane: ManagedPaneInternal, options: Partial<PaneManager
 describe('terminal-webgl-hidden-retention', () => {
   beforeEach(() => {
     resetHiddenWebglRetentionForTest()
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    resetHiddenWebglRetentionForTest()
+    vi.useRealTimers()
   })
 
   it('suspend retains live WebGL addons and still defers attachment', () => {
@@ -183,5 +190,118 @@ describe('terminal-webgl-hidden-retention', () => {
     const panesB = Array.from({ length: 6 }, () => createPane())
     suspendPaneRendering(panesB, retentionFor(ownerB, panesB))
     expect(panesB.every((pane) => pane.webglAddon != null)).toBe(true)
+  })
+
+  it('releases all six hidden contexts after 30 seconds without another tab switch', () => {
+    const panes = Array.from({ length: 6 }, () => createPane())
+    const addons = panes.map((pane) => pane.webglAddon)
+    for (const pane of panes) {
+      const manager = managerWithPane(pane, {})
+      manager.suspendRendering()
+    }
+
+    vi.advanceTimersByTime(29_999)
+    expect(panes.every((pane) => pane.webglAddon != null)).toBe(true)
+    vi.advanceTimersByTime(1)
+    expect(panes.every((pane) => pane.webglAddon === null)).toBe(true)
+    expect(panes.every((pane) => pane.webglAttachmentDeferred)).toBe(true)
+    expect(retainedHiddenWebglOwnerCountForTest()).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+    for (const addon of addons) {
+      expect(addon?.dispose).toHaveBeenCalledTimes(1)
+    }
+  })
+
+  it('cancels expiry when the user returns before the deadline', () => {
+    const pane = createPane()
+    const addon = pane.webglAddon
+    const manager = managerWithPane(pane, {})
+    manager.suspendRendering()
+    vi.advanceTimersByTime(29_999)
+    manager.resumeRendering()
+    vi.advanceTimersByTime(60_000)
+
+    expect(pane.webglAddon).toBe(addon)
+    expect(addon?.dispose).not.toHaveBeenCalled()
+    expect(pane.webglAttachmentDeferred).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('releases the driver context and canvas backing store on expiry', () => {
+    const pane = createPane()
+    const loseContext = vi.fn()
+    const canvas = { width: 1920, height: 1080 }
+    Object.assign(pane.webglAddon!, {
+      _renderer: { _gl: { getExtension: () => ({ loseContext }) }, _canvas: canvas }
+    })
+    managerWithPane(pane, {}).suspendRendering()
+    vi.advanceTimersByTime(30_000)
+
+    expect(loseContext).toHaveBeenCalledTimes(1)
+    expect(canvas).toEqual({ width: 0, height: 0 })
+    expect(pane.webglAddon).toBeNull()
+  })
+
+  it('reattaches and refreshes an expired pane without replacing the terminal', async () => {
+    await primeTerminalWebglAddon()
+    const pane = createPane()
+    const terminal = pane.terminal
+    const oldAddon = pane.webglAddon
+    Object.assign(terminal, { rows: 24, loadAddon: vi.fn(), refresh: vi.fn() })
+    pane.terminalGpuAcceleration = 'on'
+    const manager = managerWithPane(pane, {})
+    manager.suspendRendering()
+    vi.advanceTimersByTime(30_000)
+    expect(pane.webglAddon).toBeNull()
+
+    manager.resumeRendering()
+    expect(pane.terminal).toBe(terminal)
+    expect(pane.webglAddon).not.toBeNull()
+    expect(pane.webglAddon).not.toBe(oldAddon)
+    expect(terminal.loadAddon).toHaveBeenCalledTimes(1)
+    expect(terminal.refresh).toHaveBeenCalledWith(0, 23)
+    expect(terminal.options.cursorBlink).toBe(true)
+    expect(pane.webglAttachmentDeferred).toBe(false)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('does not let an earlier hide expire a newly hidden generation', () => {
+    const pane = createPane()
+    const manager = managerWithPane(pane, {})
+    manager.suspendRendering()
+    vi.advanceTimersByTime(20_000)
+    manager.resumeRendering()
+    manager.suspendRendering()
+
+    vi.advanceTimersByTime(10_000)
+    expect(pane.webglAddon).not.toBeNull()
+    vi.advanceTimersByTime(20_000)
+    expect(pane.webglAddon).toBeNull()
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('cancels expiry when retention is released for destruction', () => {
+    const owner = {}
+    const panes = [createPane()]
+    const addon = panes[0].webglAddon
+    suspendPaneRendering(panes, retentionFor(owner, panes))
+    releaseHiddenWebglRetention(owner)
+    expect(vi.getTimerCount()).toBe(0)
+    vi.advanceTimersByTime(60_000)
+    expect(addon?.dispose).not.toHaveBeenCalled()
+  })
+
+  it('cancels evicted timers without expiring newer owners early', () => {
+    const older = Array.from({ length: 6 }, () => createPane())
+    suspendPaneRendering(older, retentionFor({}, older))
+    vi.advanceTimersByTime(20_000)
+    const newer = [createPane()]
+    suspendPaneRendering(newer, retentionFor({}, newer))
+    expect(vi.getTimerCount()).toBe(1)
+    vi.advanceTimersByTime(10_000)
+    expect(newer[0].webglAddon).not.toBeNull()
+    vi.advanceTimersByTime(20_000)
+    expect(newer[0].webglAddon).toBeNull()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

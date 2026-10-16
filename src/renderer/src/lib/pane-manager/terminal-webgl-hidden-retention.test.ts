@@ -85,6 +85,37 @@ describe('terminal-webgl-hidden-retention', () => {
     expect(retainedHiddenWebglOwnerCountForTest()).toBe(1)
   })
 
+  it('does not extend the hidden deadline when a suspended manager hides again', () => {
+    const pane = createPane()
+    const manager = managerWithPane(pane, {})
+    manager.suspendRendering()
+    vi.advanceTimersByTime(20_000)
+    manager.suspendRendering()
+    vi.advanceTimersByTime(10_000)
+    expect(pane.webglAddon).toBeNull()
+  })
+
+  it('resumes a warm tab without rebuilding and cancels its expiry', () => {
+    const pane = createPane()
+    const addon = pane.webglAddon
+    const manager = managerWithPane(pane, {})
+    manager.suspendRendering()
+    vi.advanceTimersByTime(29_999)
+    expect(manager.resumeRetainedRendering()).toBe(true)
+    vi.advanceTimersByTime(30_000)
+    expect(pane.webglAddon).toBe(addon)
+    expect(pane.webglAttachmentDeferred).toBe(false)
+  })
+
+  it('requires a full resume after a hidden context expires', () => {
+    const pane = createPane()
+    const manager = managerWithPane(pane, {})
+    manager.suspendRendering()
+    vi.advanceTimersByTime(30_000)
+    expect(manager.resumeRetainedRendering()).toBe(false)
+    expect(pane.webglAttachmentDeferred).toBe(true)
+  })
+
   // Why: the retained branch's blur is already pinned above; only the dispose branch changed.
   it('blurs a suspended pane on the dispose branch', () => {
     const panes = [createPane()]

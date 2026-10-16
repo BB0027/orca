@@ -47,6 +47,7 @@ vi.mock('@/lib/pane-manager/terminal-linkifier-hover-reset', () => ({
 
 type FakeManager = {
   getPanes: ReturnType<typeof vi.fn>
+  resumeRetainedRendering: ReturnType<typeof vi.fn>
   resumeRendering: ReturnType<typeof vi.fn>
   scheduleRevealRepaint: ReturnType<typeof vi.fn>
   scheduleRevealPresent: ReturnType<typeof vi.fn>
@@ -57,6 +58,7 @@ type FakeManager = {
 function createManager(order: string[] = []): FakeManager {
   return {
     getPanes: vi.fn(() => []),
+    resumeRetainedRendering: vi.fn(() => true),
     resumeRendering: vi.fn(() => order.push('resume-rendering')),
     scheduleRevealRepaint: vi.fn(() => order.push('reveal-repaint')),
     scheduleRevealPresent: vi.fn(() => order.push('reveal-present')),
@@ -98,6 +100,16 @@ describe('resumeTerminalVisibility reveal repaint', () => {
     expect(manager.scheduleRevealRepaint).not.toHaveBeenCalled()
     expect(manager.scheduleRevealPresent).toHaveBeenCalledTimes(1)
     expect(manager.resumeRendering).not.toHaveBeenCalled()
+  })
+
+  it('rebuilds an expired hidden tab even when its worktree stayed active', () => {
+    const manager = createManager()
+    manager.resumeRetainedRendering.mockReturnValue(false)
+    resumeTerminalVisibility(resumeArgs(manager, true))
+    expect(manager.resumeRendering).toHaveBeenCalledTimes(1)
+    expect(manager.fitAllRevealedPanes).toHaveBeenCalledTimes(1)
+    expect(manager.scheduleRevealRepaint).toHaveBeenCalledTimes(1)
+    expect(manager.scheduleRevealPresent).not.toHaveBeenCalled()
   })
 
   it('captures native trim movement before enforcing viewport intent', async () => {

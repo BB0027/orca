@@ -1,4 +1,4 @@
-import { focusPanePreservingOverlays } from './pane-overlay-focus'
+import { activateManagedPane } from './pane-manager-pane-activation'
 import type {
   PaneManagerOptions,
   PaneStyleOptions,
@@ -24,6 +24,7 @@ import { collectPublicPanes, toPublicPane } from './pane-public-view'
 import { applyTerminalGpuAcceleration } from './pane-terminal-gpu-acceleration'
 import { rebuildAttachedWebgl } from './pane-webgl-reattach'
 import {
+  canResumeRetainedPaneRendering,
   markPaneComplexScriptOutput,
   clearPaneWebglTextureAtlases,
   presentPaneViewports,
@@ -60,11 +61,8 @@ import { collectPaneRenderingDiagnostics } from './pane-rendering-diagnostics'
 import { applyPaneLayoutGeometry, type TerminalPaneLayoutNode } from './pane-layout-geometry-apply'
 import { FIRST_PANE_ID } from '../../../../shared/pane-key'
 
+export type { PaneManagerOptions, PaneStyleOptions, ManagedPane, DropZone }
 export type {
-  PaneManagerOptions,
-  PaneStyleOptions,
-  ManagedPane,
-  DropZone,
   PaneExternalDropTarget,
   PaneExternalDropResolver,
   PaneExternalDropHandler
@@ -228,21 +226,7 @@ export class PaneManager {
   }
 
   setActivePane(paneId: number, opts?: { focus?: boolean }): void {
-    const pane = this.panes.get(paneId)
-    if (!pane) {
-      return
-    }
-    const changed = this.activePaneId !== paneId
-    this.activePaneId = paneId
-    applyPaneOpacity(this.panes.values(), this.activePaneId, this.styleOptions)
-
-    if (opts?.focus !== false) {
-      focusPanePreservingOverlays(pane)
-    }
-
-    if (changed) {
-      this.options.onActivePaneChange?.(toPublicPane(pane))
-    }
+    activateManagedPane(this.host, paneId, opts)
   }
 
   setPaneStyleOptions(opts: PaneStyleOptions): void {
@@ -316,6 +300,9 @@ export class PaneManager {
   }
 
   suspendRendering(): void {
+    if (this.renderingSuspended) {
+      return
+    }
     this.renderingSuspended = true
     suspendPaneRendering(
       this.panes.values(),
@@ -328,6 +315,17 @@ export class PaneManager {
   resumeRendering(): void {
     this.renderingSuspended = false
     resumePaneRendering(this.panes.values(), this)
+  }
+
+  resumeRetainedRendering(): boolean {
+    if (!this.renderingSuspended) {
+      return true
+    }
+    if (!canResumeRetainedPaneRendering(this.panes.values())) {
+      return false
+    }
+    this.resumeRendering()
+    return true
   }
 
   movePane(sourcePaneId: number, targetPaneId: number, zone: DropZone): void {

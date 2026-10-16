@@ -139,6 +139,7 @@ describe('useTerminalPaneGlobalEffects', () => {
     ])
     const manager = {
       getPanes,
+      resumeRetainedRendering: vi.fn(() => true),
       resumeRendering: vi.fn(() => order.push('resume')),
       resetWebglTextureAtlases: vi.fn(() => order.push('reset-atlas')),
       scheduleRevealRepaint: vi.fn(() => {
@@ -233,6 +234,7 @@ describe('useTerminalPaneGlobalEffects', () => {
     const terminal = { name: 'terminal-a' }
     const manager = {
       getPanes: vi.fn(() => [{ id: 1, terminal }]),
+      resumeRetainedRendering: vi.fn(() => true),
       resumeRendering: vi.fn(),
       resetWebglTextureAtlases: vi.fn(),
       scheduleRevealRepaint: vi.fn(),
@@ -285,7 +287,7 @@ describe('useTerminalPaneGlobalEffects', () => {
       isVisible: false
     })
 
-    expect(manager.suspendRendering).not.toHaveBeenCalled()
+    expect(manager.suspendRendering).toHaveBeenCalledTimes(1)
 
     beginHookRender()
     useTerminalPaneGlobalEffects({
@@ -325,6 +327,7 @@ describe('useTerminalPaneGlobalEffects', () => {
     }
     const manager = {
       getPanes: vi.fn(() => [pane]),
+      resumeRetainedRendering: vi.fn(() => true),
       resumeRendering: vi.fn(),
       resetWebglTextureAtlases: vi.fn(),
       scheduleRevealRepaint: vi.fn(),
@@ -376,6 +379,7 @@ describe('useTerminalPaneGlobalEffects', () => {
     const terminal = { name: 'terminal-a' }
     const manager = {
       getPanes: vi.fn(() => [{ id: 1, terminal }]),
+      resumeRetainedRendering: vi.fn(() => true),
       resumeRendering: vi.fn(),
       resetWebglTextureAtlases: vi.fn(),
       scheduleRevealRepaint: vi.fn(),
@@ -444,6 +448,7 @@ describe('useTerminalPaneGlobalEffects', () => {
     const terminal = { name: 'terminal-a' }
     const manager = {
       getPanes: vi.fn(() => [{ id: 1, terminal }]),
+      resumeRetainedRendering: vi.fn(() => true),
       resumeRendering: vi.fn(),
       resetWebglTextureAtlases: vi.fn(),
       scheduleRevealRepaint: vi.fn(),
@@ -500,6 +505,7 @@ describe('useTerminalPaneGlobalEffects', () => {
     const terminal = { name: 'terminal-a' }
     const manager = {
       getPanes: vi.fn(() => [{ id: 1, terminal }]),
+      resumeRetainedRendering: vi.fn(() => true),
       resumeRendering: vi.fn(),
       resetWebglTextureAtlases: vi.fn(),
       scheduleRevealRepaint: vi.fn(),
@@ -542,7 +548,7 @@ describe('useTerminalPaneGlobalEffects', () => {
       isVisible: false,
       isWorktreeActive: true
     })
-    expect(manager.suspendRendering).not.toHaveBeenCalled()
+    expect(manager.suspendRendering).toHaveBeenCalledTimes(1)
 
     beginHookRender()
     useTerminalPaneGlobalEffects({
@@ -552,7 +558,7 @@ describe('useTerminalPaneGlobalEffects', () => {
       isWorktreeActive: false
     })
 
-    expect(manager.suspendRendering).toHaveBeenCalledTimes(1)
+    expect(manager.suspendRendering).toHaveBeenCalledTimes(2)
 
     manager.resumeRendering.mockClear()
     manager.resetWebglTextureAtlases.mockClear()
@@ -589,6 +595,7 @@ describe('useTerminalPaneGlobalEffects', () => {
     const terminalA = { name: 'terminal-a' }
     const manager = {
       getPanes: vi.fn(() => [{ id: 1, terminal: terminalA }]),
+      resumeRetainedRendering: vi.fn(() => true),
       resumeRendering: vi.fn(),
       resetWebglTextureAtlases: vi.fn(),
       scheduleRevealRepaint: vi.fn(),

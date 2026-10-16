@@ -119,6 +119,18 @@ export function resumePaneRendering(
   }
 }
 
+export function canResumeRetainedPaneRendering(panes: Iterable<ManagedPaneInternal>): boolean {
+  for (const pane of panes) {
+    if (
+      pane.webglRebuildDeferred ||
+      (pane.gpuRenderingEnabled && (!pane.webglAddon || isPaneWebglContextLost(pane)))
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
 export function resetPaneWebglTextureAtlases(panes: Iterable<ManagedPaneInternal>): void {
   for (const pane of panes) {
     resetWebglTextureAtlas(pane)

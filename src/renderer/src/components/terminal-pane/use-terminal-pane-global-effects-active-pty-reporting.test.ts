@@ -139,6 +139,7 @@ describe('useTerminalPaneGlobalEffects', () => {
   function makeActivePtyManager(): {
     getPanes: ReturnType<typeof vi.fn>
     resumeRendering: ReturnType<typeof vi.fn>
+    resumeRetainedRendering: ReturnType<typeof vi.fn>
     resetWebglTextureAtlases: ReturnType<typeof vi.fn>
     scheduleRevealRepaint: ReturnType<typeof vi.fn>
     scheduleRevealPresent: ReturnType<typeof vi.fn>
@@ -149,6 +150,7 @@ describe('useTerminalPaneGlobalEffects', () => {
     return {
       getPanes: vi.fn(() => [{ id: 1, terminal: { name: 'terminal-a' } }]),
       resumeRendering: vi.fn(),
+      resumeRetainedRendering: vi.fn(() => true),
       resetWebglTextureAtlases: vi.fn(),
       scheduleRevealRepaint: vi.fn(),
       scheduleRevealPresent: vi.fn(),

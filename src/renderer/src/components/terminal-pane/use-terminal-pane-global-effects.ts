@@ -151,7 +151,7 @@ export function useTerminalPaneGlobalEffects({
       const shouldUseLightTabResume =
         isWorktreeActive &&
         hasCompletedVisibleResumeRef.current &&
-        !renderingSuspendedByVisibilityRef.current &&
+        (!renderingSuspendedByVisibilityRef.current || hiddenReasonRef.current === 'tab') &&
         (wasVisible || hiddenReasonRef.current === 'tab')
       resumeTerminalVisibility({
         manager,

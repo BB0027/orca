@@ -14,6 +14,14 @@ export function destroyRemovedBrowserWebview(browserPageId: string): void {
   destroyPersistentWebview(browserPageId)
 }
 
+export function discardRetainedBrowserGuest(browserPageId: string): void {
+  const explicitZoomLevel = getExplicitBrowserPageZoomLevel(browserPageId)
+  destroyRemovedBrowserWebview(browserPageId)
+  if (explicitZoomLevel !== null) {
+    rememberExplicitBrowserPageZoomLevel(browserPageId, explicitZoomLevel)
+  }
+}
+
 export function collectBrowserWebviewIds(
   browserTabsByWorktree: Record<string, BrowserWorkspace[]>,
   browserPagesByWorkspace: Record<string, BrowserPage[]>
@@ -52,11 +60,7 @@ export function destroyWorktreeBrowserGuests(
     // workspace tab id (same fallback as collectBrowserWebviewIds).
     const guestIds = pages.length === 0 ? [tab.id] : pages.map((page) => page.id)
     for (const guestId of guestIds) {
-      const explicitZoomLevel = getExplicitBrowserPageZoomLevel(guestId)
-      destroyRemovedBrowserWebview(guestId)
-      if (explicitZoomLevel !== null) {
-        rememberExplicitBrowserPageZoomLevel(guestId, explicitZoomLevel)
-      }
+      discardRetainedBrowserGuest(guestId)
     }
   }
 }

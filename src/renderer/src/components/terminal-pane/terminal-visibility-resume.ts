@@ -82,6 +82,8 @@ export function resumeTerminalVisibility({
   captureViewportPositions(!wasVisible)
   let repairedDpr = false
   withSuppressedScrollTracking(() => {
+    // A quick tab return reuses the retained context; expiry requires the full rebuild path.
+    shouldUseLightTabResume = shouldUseLightTabResume && manager.resumeRetainedRendering()
     if (shouldUseLightTabResume) {
       let flushedDeferredMetrics = false
       for (const pane of manager.getPanes()) {
@@ -166,7 +168,8 @@ export function hideTerminalVisibility({
     return { hiddenReason: 'tab', renderingSuspended: true }
   }
   if (wasVisible && isWorktreeActive) {
-    return { hiddenReason: 'tab', renderingSuspended: false }
+    manager.suspendRendering()
+    return { hiddenReason: 'tab', renderingSuspended: true }
   }
   if (!isWorktreeActive) {
     return { hiddenReason: 'surface', renderingSuspended: false }
